@@ -1,0 +1,10 @@
+# Adatkezelő motor
+polars>=0.20.0
+pydantic>=2.5.0
+
+# GUI keretrendszer
+PySide6>=6.6.0
+
+# Fejlesztői és teszt eszközök (ezeket később ki lehet venni a produkciós buildből)
+pytest>=7.4.0
+ruff>=0.1.0
