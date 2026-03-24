@@ -1,6 +1,7 @@
 # Adatkezelő motor
 polars>=0.20.0
 pydantic>=2.5.0
+polars[excel]>=0.20.0
 
 # GUI keretrendszer
 PySide6>=6.6.0
