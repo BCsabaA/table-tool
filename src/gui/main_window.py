@@ -161,7 +161,40 @@ class MainWindow(QMainWindow):
             combo = self.settings_table.cellWidget(1, col)
             new_types.append(combo.currentText())
             
-        # If we reach here, validation passed!
-        QMessageBox.information(self, "Siker", "Fejlécek és adattípusok rendben!\n(Itt fogjuk majd frissíteni a modellt)")
-        print(f"Validated Headers: {new_headers}")
-        print(f"Selected Types: {new_types}")
+        col_count = self.settings_table.columnCount()
+        new_headers = []
+        new_types = []
+        
+        for col in range(col_count):
+            header_item = self.settings_table.item(0, col)
+            header_text = header_item.text().strip() if header_item else ""
+            
+            if not header_text:
+                QMessageBox.warning(self, "Validációs hiba", f"A(z) {col + 1}. oszlop fejléce üres!\nMinden fejléc kitöltése kötelező.")
+                return
+                
+            if header_text in new_headers:
+                QMessageBox.warning(self, "Validációs hiba", f"A(z) '{header_text}' fejléc többször szerepel!\nMinden fejlécnek egyedinek kell lennie.")
+                return
+                
+            new_headers.append(header_text)
+            
+            combo = self.settings_table.cellWidget(1, col)
+            new_types.append(combo.currentText())
+            
+        # --- EZ A RÉSZ VÁLTOZIK ---
+        try:
+            # 1. Küldjük be az új adatokat a motorba
+            updated_df = self.data_loader.apply_schema(new_headers, new_types)
+            
+            # 2. Frissítsük a GUI modellt az új adattal
+            new_model = DataFrameModel(updated_df)
+            self.table_view.setModel(new_model)
+            
+            # 3. Opcionálisan frissítjük a beállító táblát is, hogy vizuálisan visszaálljon alapra
+            self._populate_settings_table()
+            
+            QMessageBox.information(self, "Siker", "A fejlécek és az adattípusok sikeresen frissültek a DataFrame-ben!")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Hiba az alkalmazás során", f"A változtatások érvényesítése sikertelen:\n{str(e)}")
