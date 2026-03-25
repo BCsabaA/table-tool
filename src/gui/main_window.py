@@ -2,7 +2,7 @@
 from pathlib import Path
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QLabel, QTableView, QMessageBox,
-    QTableWidget, QTableWidgetItem, QComboBox, QSplitter
+    QTableWidget, QTableWidgetItem, QComboBox, QSplitter, QPushButton
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
@@ -10,7 +10,6 @@ from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from src.core.data_loader import DataLoader
 from src.gui.models.dataframe_model import DataFrameModel
 
-# A Polars leggyakoribb adattípusai a legördülő menühöz (később bővíthető)
 POLARS_TYPES = ["String", "Int64", "Float64", "Boolean", "Date", "Datetime"]
 
 class MainWindow(QMainWindow):
@@ -28,7 +27,6 @@ class MainWindow(QMainWindow):
         self._setup_ui()
 
     def _setup_ui(self) -> None:
-        """Initializes the user interface components."""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         
@@ -49,20 +47,36 @@ class MainWindow(QMainWindow):
         """)
         layout.addWidget(self.drop_label)
         
-        # Splitter to allow resizing between settings and data tables
         self.splitter = QSplitter(Qt.Orientation.Vertical)
         layout.addWidget(self.splitter)
         
-        # Settings Table (2 rows)
+        # Settings Table
         self.settings_table = QTableWidget(2, 0)
         self.settings_table.setVerticalHeaderLabels(["Fejléc", "Típus"])
-        # Fix height so it doesn't take up too much space, but leaves room for scrollbar
         self.settings_table.setFixedHeight(110) 
         self.splitter.addWidget(self.settings_table)
         
         # Data Table View
         self.table_view = QTableView()
         self.splitter.addWidget(self.table_view)
+        
+        # Action Button (Validation and Apply)
+        self.apply_btn = QPushButton("Fejlécek és típusok véglegesítése")
+        self.apply_btn.setEnabled(False) # Disabled until a file is loaded
+        self.apply_btn.clicked.connect(self._validate_and_apply)
+        self.apply_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #007bff;
+                color: white;
+                font-weight: bold;
+                padding: 10px;
+                border-radius: 5px;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+            }
+        """)
+        layout.addWidget(self.apply_btn)
         
         self.setAcceptDrops(True)
 
@@ -78,18 +92,17 @@ class MainWindow(QMainWindow):
         file_path = Path(urls[0].toLocalFile())
         
         try:
-            # 1. Load data
             df = self.data_loader.load_preview(file_path)
             self.drop_label.setText(f"Betöltve: {file_path.name}")
             
-            # 2. Update Data Table
             model = DataFrameModel(df)
             self.table_view.setModel(model)
             
-            # 3. Update Settings Table
             self._populate_settings_table()
             
-            # 4. Sync horizontal scrolling (Optional but very helpful)
+            # Enable the apply button
+            self.apply_btn.setEnabled(True)
+            
             self.settings_table.horizontalScrollBar().valueChanged.connect(
                 self.table_view.horizontalScrollBar().setValue
             )
@@ -101,7 +114,6 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Hiba", f"Nem sikerült betölteni a fájlt:\n{str(e)}")
 
     def _populate_settings_table(self) -> None:
-        """Populates the top table with editable headers and type dropdowns."""
         headers = self.data_loader.get_headers()
         dtypes = self.data_loader.get_dtypes()
         
@@ -109,15 +121,12 @@ class MainWindow(QMainWindow):
         self.settings_table.setColumnCount(col_count)
         
         for col_idx, header in enumerate(headers):
-            # Row 0: Editable Header
             header_item = QTableWidgetItem(header)
             self.settings_table.setItem(0, col_idx, header_item)
             
-            # Row 1: Data Type Combobox
             combo = QComboBox()
             combo.addItems(POLARS_TYPES)
             
-            # Match current type, fallback to String if unknown
             current_type = dtypes.get(header, "String")
             if current_type in POLARS_TYPES:
                 combo.setCurrentText(current_type)
@@ -125,3 +134,34 @@ class MainWindow(QMainWindow):
                 combo.setCurrentText("String")
                 
             self.settings_table.setCellWidget(1, col_idx, combo)
+
+    def _validate_and_apply(self) -> None:
+        """Validates the headers for uniqueness and emptiness."""
+        col_count = self.settings_table.columnCount()
+        new_headers = []
+        new_types = []
+        
+        for col in range(col_count):
+            header_item = self.settings_table.item(0, col)
+            # Remove leading/trailing whitespaces
+            header_text = header_item.text().strip() if header_item else ""
+            
+            # Rule 1: Mandatory
+            if not header_text:
+                QMessageBox.warning(self, "Validációs hiba", f"A(z) {col + 1}. oszlop fejléce üres!\nMinden fejléc kitöltése kötelező.")
+                return
+                
+            # Rule 2: Unique
+            if header_text in new_headers:
+                QMessageBox.warning(self, "Validációs hiba", f"A(z) '{header_text}' fejléc többször szerepel!\nMinden fejlécnek egyedinek kell lennie.")
+                return
+                
+            new_headers.append(header_text)
+            
+            combo = self.settings_table.cellWidget(1, col)
+            new_types.append(combo.currentText())
+            
+        # If we reach here, validation passed!
+        QMessageBox.information(self, "Siker", "Fejlécek és adattípusok rendben!\n(Itt fogjuk majd frissíteni a modellt)")
+        print(f"Validated Headers: {new_headers}")
+        print(f"Selected Types: {new_types}")
