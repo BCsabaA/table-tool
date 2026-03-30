@@ -35,7 +35,11 @@ class DataLoader:
         except Exception:
             return ';' if ext == '.csv' else '\t'
 
-    def load_preview(self, file_path: Union[str, Path], preview_rows: int = 200) -> pl.DataFrame:
+    def load_preview(self, file_path: Union[str, Path], preview_rows: int = 200, has_header: bool = True) -> pl.DataFrame:
+        """
+        Loads a preview of the file (up to preview_rows) and infers the schema.
+        Now supports files without headers.
+        """
         self.file_path = Path(file_path)
 
         if not self.file_path.exists():
@@ -50,10 +54,12 @@ class DataLoader:
                 n_rows=preview_rows,
                 infer_schema_length=10000,
                 separator=separator,
+                has_header=has_header,  # <-- ÚJ PARAMÉTER
                 ignore_errors=True
             )
         elif ext in ['.xlsx', '.xls']:
-            full_df = pl.read_excel(self.file_path)
+            # Polars read_excel also supports the has_header parameter
+            full_df = pl.read_excel(self.file_path, has_header=has_header)
             self.preview_df = full_df.head(preview_rows)
         else:
             raise ValueError(f"Unsupported file format: {ext}")
